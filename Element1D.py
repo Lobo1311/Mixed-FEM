@@ -36,14 +36,67 @@ class Element1D(ABC):
             for j in range(self.GetNStateVars()):
                 self.fEFT[i * self.GetNStateVars() + j] = node.fIndex * self.GetNStateVars() + j
 
+        return self.fEFT
+
+    def XMap(self, qsiVec):
+        N, _ = self.Shape(qsiVec)
+        elnodevec = np.array([self.fNodes[i].fCoords for i in range(self.GetNNodes())])
+
+        return N @ elnodevec
+
+    def CalcStiffness(self):
+        intRule = self.GetIntegrationRule()
+        qsiPoints, weights = intRule.rule()
+
+        n = self.GetNDOFs()
+        KEl = np.zeros((n, n))
+        fEl = np.zeros(n)
+
+        for i in range(intRule.numPoints()):
+            qsi = qsiPoints[i]
+            weight = weights[i]
+
+            N, dNdqsi = self.Shape(qsi)
+            J, InvJ, DetJ = self.Jacobian(qsi, dNdqsi)
+            dNdx = self.PhysicalDerivatives(dNdqsi, InvJ)
+
+            B = self.CreateB(dNdx)
+
+            kel += self.Dmat * B.T @ B * DetJ * weight
+
+            if callable(self.tx):
+                tx = self.tx(self.xmap(qsi)[0])
+            else:
+                tx = self.tx
+
+            fel += N * tx * DetJ * weight
+
+        return KEl, fEl
+
     @abstractmethod
     def GetNStateVars(self):
         raise NotImplementedError("GetNStateVars must be implemented in the derived class")
 
     @abstractmethod
-    def Shape(self, qsiVec: list[float]):
+    def Shape(self, qsiVec):
         raise NotImplementedError("Shape must be implemented in the derived class")
 
     @abstractmethod
-    def Jacobian(self, qsiVec: list[float]):
+    def Jacobian(self, qsiVec, dNdqsi):
         raise NotImplementedError("Jacobian must be implemented in the derived class")
+
+    @abstractmethod
+    def QsiNode(self, nodeIndex):
+        raise NotImplementedError("QsiNode must be implemented in the derived class")
+
+    @abstractmethod
+    def NodeOrder(self):
+        raise NotImplementedError("NodeOrder must be implemented in the derived class")
+
+    @abstractmethod
+    def GetIntegrationRule(self):
+        raise NotImplementedError("GetIntegrationRule must be implemented in the derived class")
+
+    @abstractmethod
+    def IsBC(self):
+        raise NotImplementedError("IsBC must be implemented in the derived class")
