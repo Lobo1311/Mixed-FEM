@@ -5,13 +5,11 @@ import numpy as np
 
 class Element1D(ABC):
     def __init__(self, nodes: list[Node1D]):
-        if len(nodes) != 2:
-            raise ValueError("1D Element must have 2 nodes")
-
         self.fNodes = nodes
         self.fIndex = -1
         self.fEFT = None
         self._bignumber = 1.e12
+        self.fPOrder = -1
 
     def __str__(self):
         return f"Element index={self.fIndex}, nodes=[{self.fNodes[0]}, {self.fNodes[1]}])"
@@ -38,8 +36,8 @@ class Element1D(ABC):
 
         return self.fEFT
 
-    def XMap(self, qsiVec):
-        N, _ = self.Shape(qsiVec)
+    def XMap(self, qsi):
+        N, _ = self.Shape(qsi)
         elnodevec = np.array([self.fNodes[i].fCoords for i in range(self.GetNNodes())])
 
         return N @ elnodevec
@@ -62,14 +60,14 @@ class Element1D(ABC):
 
             B = self.CreateB(dNdx)
 
-            kel += self.Dmat * B.T @ B * DetJ * weight
+            KEl += self.fDMat * B.T @ B * DetJ * weight
 
-            if callable(self.tx):
-                tx = self.tx(self.xmap(qsi)[0])
+            if callable(self.fQ):
+                q = self.fQ(self.XMap(qsi)[0])
             else:
-                tx = self.tx
+                q = self.fQ
 
-            fel += N * tx * DetJ * weight
+            fEl += N * q * DetJ * weight
 
         return KEl, fEl
 
@@ -78,7 +76,7 @@ class Element1D(ABC):
         raise NotImplementedError("GetNStateVars must be implemented in the derived class")
 
     @abstractmethod
-    def Shape(self, qsiVec):
+    def Shape(self, qsi):
         raise NotImplementedError("Shape must be implemented in the derived class")
 
     @abstractmethod
@@ -88,10 +86,6 @@ class Element1D(ABC):
     @abstractmethod
     def QsiNode(self, nodeIndex):
         raise NotImplementedError("QsiNode must be implemented in the derived class")
-
-    @abstractmethod
-    def NodeOrder(self):
-        raise NotImplementedError("NodeOrder must be implemented in the derived class")
 
     @abstractmethod
     def GetIntegrationRule(self):

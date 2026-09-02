@@ -17,23 +17,23 @@ class Integrate1D:
 
 class Solver:
     def __init__(self, mesh):
-        self.mesh = mesh
+        self.fMesh = mesh
         self.K = None
         self.F = None
         self.u = None
 
     def Assemble(self):
-        n = self.mesh.nequations()
+        n = self.fMesh.GetNEquations()
         self.K = np.zeros((n, n))
         self.F = np.zeros(n)
 
-        for el in self.mesh.elvec:
-            kel, fel = el.calcstiff()
-            for i in range(el.ndofs()):
-                for j in range(el.ndofs()):
-                    self.K[el.eft[i], el.eft[j]] += kel[i, j]
+        for el in self.fMesh.fElements:
+            kel, fel = el.CalcStiffness()
+            for i in range(el.GetNDOFs()):
+                for j in range(el.GetNDOFs()):
+                    self.K[el.BuildEFT()[i], el.BuildEFT()[j]] += kel[i, j]
 
-                self.F[el.eft[i]] += fel[i]
+                self.F[el.BuildEFT()[i]] += fel[i]
 
     def Solve(self):
         self.u = np.linalg.solve(self.K, self.F)
