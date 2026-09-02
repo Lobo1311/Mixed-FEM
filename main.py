@@ -5,15 +5,20 @@ from Solver import *
 
 import numpy as np
 
+def DarcySolution(x, L):
+    #! for k = 0.2 and q = 5x
+    return 4.1666666667 * (0.24 * L - 0.24 * x + L**3 * x - L * x**3) / L
+
 def main():
     mesh = Mesh1D()
 
-    nEl = 4
+    nEl = 100
     l = 1
 
-    k = 1
+    k = 0.2
     mu = 1
-    q = 0
+    def q(x):
+        return 5 * x
 
     step = l / nEl
     xValues = []
@@ -32,8 +37,8 @@ def main():
         elements.append(elem)
 
     # Creating BCs
-    bcLeft = DarcyElBC([nodes[0]], "dirichlet", [2])
-    bcRight = DarcyElBC([nodes[-1]], "dirichlet", [1])
+    bcLeft = DarcyElBC([nodes[0]], "dirichlet", [1])
+    bcRight = DarcyElBC([nodes[-1]], "dirichlet", [0])
 
     for node in nodes:
         mesh.AddNode(node)
@@ -76,13 +81,14 @@ def PlotResults(solver, k, mu):
 
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
 
-    ax1.plot(x, pressure, marker='o')
+    ax1.plot(x, pressure)
     ax1.set_xlabel('x')
     ax1.set_ylabel('pressure')
     ax1.set_title('Pressure solution of the 1D Darcy Problem')
+    ax1.plot(x, [DarcySolution(xi, 1) for xi in x], label='Analytical Solution', linestyle='--')
     ax1.grid()
 
-    ax2.plot(flow_x, flow, marker='o')
+    ax2.plot(flow_x, flow)
     ax2.set_xlabel('x')
     ax2.set_ylabel('flow')
     ax2.set_title('Flow solution of the 1D Darcy Problem')

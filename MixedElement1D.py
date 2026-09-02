@@ -3,7 +3,7 @@ from Node import *
 from abc import ABC, abstractmethod
 import numpy as np
 
-class Element1D(ABC):
+class MixedElement1D(ABC):
     def __init__(self, nodes: list[Node1D]):
         self.fNodes = nodes
         self.fIndex = -1
@@ -24,6 +24,8 @@ class Element1D(ABC):
 
             Total += self.GetNStateVars()
 
+        Total += self.GetNFluxVars()
+
         return Total
 
     def BuildEFT(self):
@@ -32,6 +34,12 @@ class Element1D(ABC):
         for i, node in enumerate(self.fNodes):
             for j in range(self.GetNStateVars()):
                 self.fEFT[i * self.GetNStateVars() + j] = node.fIndex * self.GetNStateVars() + j
+
+        start_mixed_index = (self.GetNStateVars() - 1) * self.fIndex + 2
+
+        for k in range(self.GetNFluxVars()):
+            self.fEFT[self.fNodes * self.GetNStateVars() + k] = start_mixed_index + self.fIndex * self.GetNFluxVars() + k
+            #! check this
 
         return self.fEFT
 
@@ -73,6 +81,10 @@ class Element1D(ABC):
     @abstractmethod
     def GetNStateVars(self):
         raise NotImplementedError("GetNStateVars must be implemented in the derived class")
+
+    @abstractmethod
+    def GetNFluxVars(self):
+        raise NotImplementedError("GetNFluxVars must be implemented in the derived class")
 
     @abstractmethod
     def Shape(self, qsi):
