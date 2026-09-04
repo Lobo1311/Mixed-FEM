@@ -17,29 +17,30 @@ class MixedElement1D(ABC):
         return len(self.fNodes)
 
     def GetNDOFs(self):
+        Total = self.GetNodesNDOFs()
+        Total += self.GetNElemVars()
+
+        return Total
+
+    def GetNodesNDOFs(self):
         Total = 0
         for node in self.fNodes:
             if node.fIndex == -1:
                 raise ValueError("Node index not set for one of the nodes in the element")
 
-            Total += self.GetNStateVars()
-
-        Total += self.GetNFluxVars()
+            Total += self.GetNNodeVars()
 
         return Total
 
-    def BuildEFT(self):
+    def BuildEFT(self, total_flow_dofs):
         self.fEFT = np.empty(self.GetNDOFs(), dtype=int)
 
         for i, node in enumerate(self.fNodes):
-            for j in range(self.GetNStateVars()):
-                self.fEFT[i * self.GetNStateVars() + j] = node.fIndex * self.GetNStateVars() + j
+            for j in range(self.GetNNodeVars()):
+                self.fEFT[i * self.GetNNodeVars() + j] = node.fIndex * self.GetNNodeVars() + j
 
-        start_mixed_index = (self.GetNStateVars() - 1) * self.fIndex + 2
-
-        for k in range(self.GetNFluxVars()):
-            self.fEFT[self.fNodes * self.GetNStateVars() + k] = start_mixed_index + self.fIndex * self.GetNFluxVars() + k
-            #! check this
+        for k in range(self.GetNElemVars()):
+            self.fEFT[len(self.fNodes) * self.GetNNodeVars() + k] = total_flow_dofs + 1 + self.fIndex * self.GetNElemVars() + k
 
         return self.fEFT
 
@@ -47,7 +48,7 @@ class MixedElement1D(ABC):
         N, _ = self.Shape(qsi)
         elnodevec = np.array([self.fNodes[i].fCoords for i in range(self.GetNNodes())])
 
-        return N @ elnodevec
+        return N[:self.GetNodesNDOFs()] @ elnodevec
 
     def CalcStiffness(self):
         intRule = self.GetIntegrationRule()
@@ -57,42 +58,50 @@ class MixedElement1D(ABC):
         KEl = np.zeros((n, n))
         fEl = np.zeros(n)
 
+        n_flow = self.GetNodesNDOFs()
+        n_pressure = self.GetNElemVars()
+
         for i in range(intRule.numPoints()):
             qsi = qsiPoints[i]
             weight = weights[i]
 
             N, dNdqsi = self.Shape(qsi)
-            J, InvJ, DetJ = self.Jacobian(qsi, dNdqsi)
-            dNdx = self.PhysicalDerivatives(dNdqsi, InvJ)
 
-            B = self.CreateB(dNdx)
+            flow_matrix = np.zeros((n_flow, n_flow))
+            for i_flow in range(n_flow):
+                for j_flow in range(n_flow):
+                    flow_matrix[i_flow, j_flow] = self.fDMat * N[i_flow] * N[j_flow] * self.CalcDetJac() * weight
 
-            KEl += self.fDMat * B.T @ B * DetJ * weight
+            pressure_matrix = np.zeros((n_flow, n_pressure))
+            for i_flow in range(n_flow):
+                for j_pressure in range(n_pressure):
+                    pressure_matrix[i_flow, j_pressure] = -N[n_flow + j_pressure] * dNdqsi[i_flow] * weight
+                
+            KEl[:n_flow, :n_flow] += flow_matrix
+            KEl[:n_flow, n_flow:] += pressure_matrix
+            KEl[n_flow:, :n_flow] += pressure_matrix.T
 
             if callable(self.fQ):
                 q = self.fQ(self.XMap(qsi)[0])
             else:
                 q = self.fQ
 
-            fEl += N * q * DetJ * weight
+            for i_pressure in range(n_pressure):
+                fEl[n_flow + i_pressure] += -N[n_flow + i_pressure] * q * self.CalcDetJac() * weight
 
         return KEl, fEl
 
     @abstractmethod
-    def GetNStateVars(self):
-        raise NotImplementedError("GetNStateVars must be implemented in the derived class")
+    def GetNNodeVars(self):
+        raise NotImplementedError("GetNNodeVars must be implemented in the derived class")
 
     @abstractmethod
-    def GetNFluxVars(self):
-        raise NotImplementedError("GetNFluxVars must be implemented in the derived class")
+    def GetNElemVars(self):
+        raise NotImplementedError("GetNElemVars must be implemented in the derived class")
 
     @abstractmethod
     def Shape(self, qsi):
         raise NotImplementedError("Shape must be implemented in the derived class")
-
-    @abstractmethod
-    def Jacobian(self, qsiVec, dNdqsi):
-        raise NotImplementedError("Jacobian must be implemented in the derived class")
 
     @abstractmethod
     def QsiNode(self, nodeIndex):

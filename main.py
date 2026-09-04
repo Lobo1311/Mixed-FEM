@@ -1,4 +1,5 @@
 from Mesh1D import *
+from MixedDarcyEl import MixedDarcyEl, MixedDarcyElBC
 from Node import *
 from DarcyEl import DarcyEl, DarcyElBC
 from Solver import *
@@ -9,10 +10,10 @@ def DarcySolution(x, L):
     #! for k = 0.2 and q = 5x
     return 4.1666666667 * (0.24 * L - 0.24 * x + L**3 * x - L * x**3) / L
 
-def main():
+def Darcy():
     mesh = Mesh1D()
 
-    nEl = 100
+    nEl = 4
     l = 1
 
     k = 0.2
@@ -52,9 +53,59 @@ def main():
     solver = Solver(mesh)
     solver.Run()
 
-    PlotResults(solver, k, mu)
+    PlotResults(solver, k, mu, l)
 
-def PlotResults(solver, k, mu):
+def MixedDarcy():
+    mesh = MixedMesh1D()
+
+    nEl = 100
+    l = 1
+
+    k = 0.2
+    mu = 1
+    def q(x):
+        return 5.0 * x
+
+    step = l / nEl
+    xValues = []
+    for i in range(nEl + 1):
+        xValues.append(i*step)
+
+    # Creating nodes
+    nodes = []
+    for i in xValues:
+        nodes.append(Node1D(np.array([i, 0])))
+
+    # Creating elements
+    elements = []
+    for i in range(nEl):
+        elem = MixedDarcyEl(k, mu, q, [nodes[i], nodes[i + 1]])
+        elements.append(elem)
+
+    # Creating BCs
+    bcLeft = MixedDarcyElBC([nodes[0]], "dirichlet", [1])
+    bcRight = MixedDarcyElBC([nodes[-1]], "dirichlet", [0])
+
+    for node in nodes:
+        mesh.AddNode(node)
+
+    for el in elements:
+        mesh.AddElement(el)
+
+    mesh.AddElement(bcLeft)
+    mesh.AddElement(bcRight)
+
+    mesh.BuildEFT()
+
+    solver = Solver(mesh)
+    solver.Run()
+
+    print(solver.u)
+
+    PlotMixedResults(solver, l)
+
+
+def PlotResults(solver, k, mu, l):
     import matplotlib.pyplot as plt
 
     x = []
@@ -85,7 +136,8 @@ def PlotResults(solver, k, mu):
     ax1.set_xlabel('x')
     ax1.set_ylabel('pressure')
     ax1.set_title('Pressure solution of the 1D Darcy Problem')
-    ax1.plot(x, [DarcySolution(xi, 1) for xi in x], label='Analytical Solution', linestyle='--')
+    xLinspace = np.linspace(0, l, 100)
+    ax1.plot(xLinspace, [DarcySolution(xi, l) for xi in xLinspace], label='Analytical Solution', linestyle='--')
     ax1.grid()
 
     ax2.plot(flow_x, flow)
@@ -96,5 +148,41 @@ def PlotResults(solver, k, mu):
 
     plt.show()
 
+def PlotMixedResults(solver, l):
+    import matplotlib.pyplot as plt
+
+    x = []
+    pressure = []
+    flow = []
+    flow_x = []
+
+    for node in solver.fMesh.fNodes:
+        x.append(node.fCoords[0])
+        flow.append(solver.u[node.fIndex])
+
+    for element in solver.fMesh.fElements:
+        if not isinstance(element, MixedDarcyEl):
+            continue
+
+        pressure.append(solver.u[len(solver.fMesh.fNodes) + element.fIndex])
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
+
+    ax1.stairs(pressure, x, label = 'FEM Solution')
+    ax1.set_xlabel('x')
+    ax1.set_ylabel('pressure')
+    ax1.set_title('Pressure solution of the 1D Darcy Problem')
+    xLinspace = np.linspace(0, l, 100)
+    ax1.plot(xLinspace, [DarcySolution(xi, l) for xi in xLinspace], label='Analytical Solution', linestyle='--')
+    ax1.grid()
+
+    ax2.plot(x, flow)
+    ax2.set_xlabel('x')
+    ax2.set_ylabel('flow')
+    ax2.set_title('Flow solution of the 1D Darcy Problem')
+    ax2.grid()
+
+    plt.show()
+
 if __name__ == "__main__":
-    main()
+    MixedDarcy()

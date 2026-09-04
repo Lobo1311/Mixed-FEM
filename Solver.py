@@ -28,12 +28,20 @@ class Solver:
         self.F = np.zeros(n)
 
         for el in self.fMesh.fElements:
+            EFT = el.fEFT
             kel, fel = el.CalcStiffness()
+
             for i in range(el.GetNDOFs()):
                 for j in range(el.GetNDOFs()):
-                    self.K[el.BuildEFT()[i], el.BuildEFT()[j]] += kel[i, j]
+                    self.K[EFT[i], EFT[j]] += kel[i, j]
 
-                self.F[el.BuildEFT()[i]] += fel[i]
+                self.F[EFT[i]] += fel[i]
+
+        # debug
+        print("Global Stiffness Matrix K:")
+        print(self.K)
+        print("Global Force Vector F:")
+        print(self.F)
 
     def Solve(self):
         self.u = np.linalg.solve(self.K, self.F)

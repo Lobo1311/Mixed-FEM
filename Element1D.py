@@ -33,8 +33,6 @@ class Element1D(ABC):
             for j in range(self.GetNStateVars()):
                 self.fEFT[i * self.GetNStateVars() + j] = node.fIndex * self.GetNStateVars() + j
 
-        return self.fEFT
-
     def XMap(self, qsi):
         N, _ = self.Shape(qsi)
         elnodevec = np.array([self.fNodes[i].fCoords for i in range(self.GetNNodes())])
